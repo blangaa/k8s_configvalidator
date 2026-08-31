@@ -2,6 +2,5 @@ cat > .gitignore << 'EOF'
 *.exe
 *.test
 *.out
-deployment.yaml
 manifests/
 EOF
