@@ -3,4 +3,5 @@ cat > .gitignore << 'EOF'
 *.test
 *.out
 deployment.yaml
+manifests/
 EOF
