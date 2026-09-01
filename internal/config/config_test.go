@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"strings"
+	"testing"
+)
 
 func validDeployment() Deployment {
 	return Deployment{
@@ -158,5 +162,85 @@ func TestStatefulSetValidate(t *testing.T) {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestLoadManifest(t *testing.T) {
+	tests := []struct {
+		name        string
+		yaml        string
+		wantErr     bool
+		wantErrText string
+	}{
+		{
+			name: "valid deployment",
+			yaml: `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+        - name: payment-service
+          image: myregistry/payment-service:1.4.2
+`,
+			wantErr: false,
+		},
+		{
+			name: "unsupported kind",
+			yaml: `
+apiVersion: v1
+kind: Ingress
+metadata:
+  name: some-ingress
+`,
+			wantErr:     true,
+			wantErrText: "unsupported kind",
+		},
+		{
+			name:        "malformed yaml",
+			yaml:        `not: [valid: yaml`,
+			wantErr:     true,
+			wantErrText: "parsing yaml",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := dir + "/manifest.yaml"
+			if err := os.WriteFile(path, []byte(tt.yaml), 0644); err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+
+			manifest, err := LoadManifest(path)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.wantErrText) {
+					t.Errorf("expected error to contain %q, got %q", tt.wantErrText, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if manifest == nil {
+				t.Fatal("expected non-nil manifest")
+			}
+		})
+	}
+}
+
+func TestLoadManifest_FileNotFound(t *testing.T) {
+	_, err := LoadManifest("/nonexistent/path/manifest.yaml")
+	if err == nil {
+		t.Fatal("expected error for nonexistent file, got nil")
 	}
 }
